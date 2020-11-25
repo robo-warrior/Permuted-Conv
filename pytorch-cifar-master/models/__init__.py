@@ -15,3 +15,4 @@ from .mobilenetv2 import *
 from .efficientnet import *
 from .regnet import *
 from .permuted_resnet import *
+from .shuffled_filters_resnet import *

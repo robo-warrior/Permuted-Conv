@@ -22,7 +22,7 @@ parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
 
-num_channels_permuted = "All_blocks_64_channels"
+num_channels_permuted = "2nd_block_All_channels"
 gpu_id = 3
 experiment.add_tag("ShuffledResNet18")
 experiment.add_tag(num_channels_permuted)

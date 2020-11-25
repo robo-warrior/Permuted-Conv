@@ -22,10 +22,10 @@ parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
 
-num_channels_permuted = 0
+num_channels_permuted = "All_blocks_64_channels"
 gpu_id = 3
-experiment.add_tag("ResNet18")
-experiment.add_tag(str(num_channels_permuted))
+experiment.add_tag("ShuffledResNet18")
+experiment.add_tag(num_channels_permuted)
 
 device = 'cuda:' + str(gpu_id) if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
@@ -63,8 +63,9 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
-net = ResNet18()
+# net = ResNet18()
 # net = PermResNet18()
+net = ShuffledResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -163,7 +164,7 @@ training_loss_list = []
 testing_loss_list = []
 
 for epoch in range(start_epoch, start_epoch+1000):
-    print("PermResNet18")
+    print("ShuffledResNet18")
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)
     training_loss_list.append(train_loss)

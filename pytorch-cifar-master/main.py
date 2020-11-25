@@ -1,19 +1,20 @@
 '''Train CIFAR10 with PyTorch.'''
+from comet_ml import Experiment
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-
+import matplotlib.pyplot as plt
 import torchvision
 import torchvision.transforms as transforms
-
 import os
 import argparse
-
 from models import *
 from utils import progress_bar
 
+experiment = Experiment(api_key="hPc2DeBWvLYMqWUFLMgVTSQrF",
+                        project_name="permuted-convolutions", workspace="rishabh")
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -21,9 +22,16 @@ parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+num_channels_permuted = 0
+gpu_id = 3
+experiment.add_tag("ResNet18")
+experiment.add_tag(str(num_channels_permuted))
+
+device = 'cuda:' + str(gpu_id) if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+train_batch_size = 50
+test_batch_size = 50
 
 # Data
 print('==> Preparing data..')
@@ -42,12 +50,12 @@ transform_test = transforms.Compose([
 trainset = torchvision.datasets.CIFAR10(
     root='./data', train=True, download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(
-    trainset, batch_size=128, shuffle=True, num_workers=2)
+    trainset, batch_size=train_batch_size, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(
     root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
-    testset, batch_size=100, shuffle=False, num_workers=2)
+    testset, batch_size=test_batch_size, shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
@@ -55,7 +63,8 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
-# net = ResNet18()
+net = ResNet18()
+# net = PermResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -67,11 +76,12 @@ print('==> Building model..')
 # net = SENet18()
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
-net = RegNetX_200MF()
+# net = RegNetX_200MF()
 net = net.to(device)
-if device == 'cuda':
-    net = torch.nn.DataParallel(net)
-    cudnn.benchmark = True
+
+# if device == 'cuda:2':
+#     net = torch.nn.DataParallel(net)
+#     cudnn.benchmark = True
 
 if args.resume:
     # Load checkpoint.
@@ -101,7 +111,6 @@ def train(epoch):
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
-
         train_loss += loss.item()
         _, predicted = outputs.max(1)
         total += targets.size(0)
@@ -109,6 +118,8 @@ def train(epoch):
 
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+
+    return train_loss/len(trainloader), 100.*correct/total
 
 
 def test(epoch):
@@ -122,7 +133,6 @@ def test(epoch):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
             loss = criterion(outputs, targets)
-
             test_loss += loss.item()
             _, predicted = outputs.max(1)
             total += targets.size(0)
@@ -145,7 +155,38 @@ def test(epoch):
         torch.save(state, './checkpoint/ckpt.pth')
         best_acc = acc
 
+    return test_loss / len(testloader), 100.*correct/total
 
-for epoch in range(start_epoch, start_epoch+200):
-    train(epoch)
-    test(epoch)
+training_acc_list = []
+testing_acc_list = []
+training_loss_list = []
+testing_loss_list = []
+
+for epoch in range(start_epoch, start_epoch+1000):
+    print("PermResNet18")
+    train_loss, train_acc = train(epoch)
+    test_loss, test_acc = test(epoch)
+    training_loss_list.append(train_loss)
+    testing_loss_list.append(test_loss)
+    training_acc_list.append(train_acc)
+    testing_acc_list.append(test_acc)
+
+    plt.plot(training_loss_list, color='blue', label='Training')
+    plt.plot(testing_loss_list, color='red', label='Testing', alpha=.5)
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Loss plot')
+    plt.legend()
+    # plt.savefig("./loss_plot_perm2.png", format='png')
+    experiment.log_figure(figure=plt, figure_name='loss_plot', overwrite=True)
+    plt.close()
+
+    plt.plot(training_acc_list, color='blue', label='Training')
+    plt.plot(testing_acc_list, color='red', label='Testing', alpha=.5)
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy plot')
+    plt.legend()
+    # plt.savefig("./accuracy_plot_perm2.png", format='png')
+    experiment.log_figure(figure=plt, figure_name='accuracy_plot', overwrite=True)
+    plt.close()

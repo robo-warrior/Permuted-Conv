@@ -57,7 +57,7 @@ class Net(nn.Module):
         self.filter_size1 = 3
         self.channelsafter1 = self.kernels_layer1
         self.depthwise1 = nn.Conv2d(self.n_in1, self.n_in1 * self.kernels_layer1, kernel_size=self.filter_size1, groups=self.n_in1)
-        self.oneXoneDepthSeparable1 = nn.Conv2d(self.n_in1 * self.kernels_layer1, self.channelsafter1, kernel_size=1, groups=self.kernels_layer1)
+        self.oneXoneDepthSeparable1 = nn.Conv2d(self.n_in1 * self.kernels_layer1, self.kernels_layer1, kernel_size=1, groups=self.kernels_layer1)
         self.heightwidthafter1 = self.heightwidth - self.filter_size1 + 1
 
         # pool1
@@ -70,8 +70,8 @@ class Net(nn.Module):
         self.kernels_layer2 = 40
         self.filter_size2 = 3
         self.channelsafter2 = self.kernels_layer2
-        self.depthwise2 = nn.Conv2d(self.channelsafter1, self.n_in2 * self.kernels_layer2, kernel_size=self.filter_size2, groups=self.n_in2)
-        self.oneXoneDepthSeparable2 = nn.Conv2d(self.n_in2 * self.kernels_layer2, self.channelsafter2, kernel_size=1, groups=self.kernels_layer2)
+        self.depthwise2 = nn.Conv2d(self.n_in2, self.n_in2 * self.kernels_layer2, kernel_size=self.filter_size2, groups=self.n_in2)
+        self.oneXoneDepthSeparable2 = nn.Conv2d(self.n_in2 * self.kernels_layer2, self.kernels_layer2, kernel_size=1, groups=self.kernels_layer2)
         self.heightwidthafter2 = self.heightwidthafterpool1 - self.filter_size2 + 1
 
         # pool2
@@ -84,10 +84,11 @@ class Net(nn.Module):
         self.kernels_layer3 = 50
         self.filter_size3 = 3
         self.channelsafter3 = self.kernels_layer3
-        self.depthwise3 = nn.Conv2d(self.channelsafter2, self.n_in3 * self.kernels_layer3, kernel_size=self.filter_size3,
+        self.depthwise3 = nn.Conv2d(self.n_in3, self.n_in3 * self.kernels_layer3, kernel_size=self.filter_size3,
                                     groups=self.n_in3)
-        self.oneXoneDepthSeparable3 = nn.Conv2d(self.n_in3 * self.kernels_layer3, self.channelsafter3, kernel_size=1,  groups=self.kernels_layer3)
+        self.oneXoneDepthSeparable3 = nn.Conv2d(self.n_in3 * self.kernels_layer3, self.kernels_layer3, kernel_size=1,  groups=self.kernels_layer3)
         self.heightwidthafter3 = self.heightwidthafterpool2 - self.filter_size3 + 1
+
 
         # fc1
         self.outchannelsfc1 = 120

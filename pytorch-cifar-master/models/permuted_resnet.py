@@ -43,8 +43,9 @@ class PermBasicBlock(nn.Module):
     def __init__(self, in_planes, planes, stride=1):
         super(PermBasicBlock, self).__init__()
 
-        # hyperparameter
+        ################################################
         self.num_channels_permuted = 1
+        ################################################
 
         self.in_planes = in_planes
         self.planes = planes

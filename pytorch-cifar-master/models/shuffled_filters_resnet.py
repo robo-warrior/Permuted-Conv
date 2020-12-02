@@ -45,8 +45,9 @@ class ShuffledBasicBlock(nn.Module):
     def __init__(self, in_planes, planes, stride=1):
         super(ShuffledBasicBlock, self).__init__()
 
-        # hyperparameter
+        ################################################
         self.num_channels_shuffled = -1
+        ################################################
 
         self.conv1 = nn.Conv2d(
             in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)

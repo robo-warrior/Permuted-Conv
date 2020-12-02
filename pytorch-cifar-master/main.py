@@ -23,9 +23,12 @@ parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
 
+################################################
 num_channels_permuted = "2nd_block_All_channels"
 model_name = "ShuffledResNet18"
 gpu_id = 3
+################################################
+
 experiment.add_tag(model_name)
 experiment.add_tag(num_channels_permuted)
 
@@ -64,6 +67,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 
 # Model
 print('==> Building model..')
+################################################
 # net = VGG('VGG19')
 # net = ResNet18()
 # net = PermResNet18()
@@ -80,6 +84,7 @@ net = ShuffledResNet18()
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
 # net = RegNetX_200MF()
+################################################
 net = net.to(device)
 
 # if device == 'cuda:2':

@@ -12,19 +12,21 @@ import os
 import argparse
 from models import *
 from utils import progress_bar
+import torch.optim.lr_scheduler as lrs
 
 experiment = Experiment(api_key="hPc2DeBWvLYMqWUFLMgVTSQrF",
                         project_name="permuted-convolutions", workspace="rishabh")
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
 
 num_channels_permuted = "2nd_block_All_channels"
+model_name = "ShuffledResNet18"
 gpu_id = 3
-experiment.add_tag("ShuffledResNet18")
+experiment.add_tag(model_name)
 experiment.add_tag(num_channels_permuted)
 
 device = 'cuda:' + str(gpu_id) if torch.cuda.is_available() else 'cpu'
@@ -96,6 +98,7 @@ if args.resume:
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
+model_scheduler = lrs.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
 
 # Training
@@ -120,6 +123,7 @@ def train(epoch):
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
+    model_scheduler.step(train_loss/len(trainloader))
     return train_loss/len(trainloader), 100.*correct/total
 
 
@@ -164,7 +168,7 @@ training_loss_list = []
 testing_loss_list = []
 
 for epoch in range(start_epoch, start_epoch+1000):
-    print("ShuffledResNet18")
+    print(model_name)
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)
     training_loss_list.append(train_loss)

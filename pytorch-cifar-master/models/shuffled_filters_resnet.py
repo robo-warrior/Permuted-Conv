@@ -44,6 +44,10 @@ class ShuffledBasicBlock(nn.Module):
 
     def __init__(self, in_planes, planes, stride=1):
         super(ShuffledBasicBlock, self).__init__()
+
+        # hyperparameter
+        self.num_channels_shuffled = -1
+
         self.conv1 = nn.Conv2d(
             in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
@@ -67,8 +71,8 @@ class ShuffledBasicBlock(nn.Module):
         return x
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.shuffle(self.conv1(x), -1)))
-        out = self.bn2(self.shuffle(self.conv2(out), -1))
+        out = F.relu(self.bn1(self.shuffle(self.conv1(x), self.num_channels_shuffled)))
+        out = self.bn2(self.shuffle(self.conv2(out), self.num_channels_shuffled))
         out += self.shortcut(x)
         out = F.relu(out)
         return out

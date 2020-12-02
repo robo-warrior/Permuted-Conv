@@ -1,2 +1,3 @@
 # Permuted-Conv
-Masters thesis
+Masters thesis: PermNet - Extreme CNN compression with Permuted & Shuffled Convolutions
+

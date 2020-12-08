@@ -46,7 +46,7 @@ class ShuffledBasicBlock(nn.Module):
         super(ShuffledBasicBlock, self).__init__()
 
         ################################################
-        self.num_channels_shuffled = -1
+        self.num_channels_shuffled = 100
         ################################################
 
         self.conv1 = nn.Conv2d(
@@ -121,8 +121,8 @@ class ShuffledResNet(nn.Module):
         ################################################################################################
         self.layer1 = self._make_layer(BasicBlock, 64, num_blocks[0], stride=1)
         self.layer2 = self._make_layer(ShuffledBasicBlock, 128, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(BasicBlock, 256, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(BasicBlock, 512, num_blocks[3], stride=2)
+        self.layer3 = self._make_layer(ShuffledBasicBlock, 256, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(ShuffledBasicBlock, 512, num_blocks[3], stride=2)
         ################################################################################################
         self.linear = nn.Linear(512*block.expansion, num_classes)
 

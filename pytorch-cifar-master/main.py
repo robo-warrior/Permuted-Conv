@@ -24,7 +24,7 @@ parser.add_argument('--resume', '-r', action='store_true',
 args = parser.parse_args()
 
 ################################################
-num_channels_permuted = "2nd_block_All_channels"
+num_channels_permuted = "2-4_blocks_100_channels"
 model_name = "ShuffledResNet18"
 gpu_id = 3
 ################################################
@@ -172,6 +172,8 @@ testing_acc_list = []
 training_loss_list = []
 testing_loss_list = []
 
+best_train_acc = 0
+best_test_acc = 0
 for epoch in range(start_epoch, start_epoch+1000):
     print(model_name)
     train_loss, train_acc = train(epoch)
@@ -180,6 +182,15 @@ for epoch in range(start_epoch, start_epoch+1000):
     testing_loss_list.append(test_loss)
     training_acc_list.append(train_acc)
     testing_acc_list.append(test_acc)
+    if(train_acc > best_train_acc):
+        best_train_acc = train_acc
+    if (test_acc > best_test_acc):
+        best_test_acc = test_acc
+
+    experiment.log_metric("best_train_acc", best_train_acc, epoch=epoch+1)
+    experiment.log_metric("best_test_acc", best_test_acc, epoch=epoch + 1)
+    experiment.log_metric("train_acc", train_acc, epoch=epoch + 1)
+    experiment.log_metric("test_acc", test_acc, epoch=epoch + 1)
 
     plt.plot(training_loss_list, color='blue', label='Training')
     plt.plot(testing_loss_list, color='red', label='Testing', alpha=.5)

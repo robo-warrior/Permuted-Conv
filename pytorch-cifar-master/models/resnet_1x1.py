@@ -39,6 +39,43 @@ class BasicBlock(nn.Module):
         return out
 
 
+
+class PermBasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_planes, planes, stride=1):
+        super(PermBasicBlock, self).__init__()
+
+        self.in_planes = in_planes
+        self.planes = planes
+        self.conv1 = nn.Conv2d(
+            in_planes, in_planes * planes, kernel_size=3, stride=stride, padding=1, bias=False, groups=self.in_planes)
+        self.onexone1 = nn.Conv2d(in_planes * planes, planes, kernel_size=1)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes, planes * planes, kernel_size=3, stride=1, padding=1, bias=False, groups=self.planes)
+        self.onexone2 = nn.Conv2d(planes * planes, planes, kernel_size=1)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != self.expansion*planes:
+            self.shortcut = nn.Sequential(
+                # nn.Conv2d(in_planes, in_planes * self.expansion*planes,
+                #           kernel_size=1, stride=stride, bias=False, groups=in_planes),
+                # nn.Conv2d(in_planes * self.expansion*planes, self.expansion*planes, kernel_size=1, groups=self.expansion*planes),
+                nn.Conv2d(in_planes, self.expansion * planes,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(self.expansion*planes)
+            )
+
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.onexone1(self.conv1(x))))
+        out = self.bn2(self.onexone2(self.conv2(out)))
+        out += self.shortcut(x)
+        out = F.relu(out)
+        return out
+
+
+
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -78,10 +115,10 @@ class ResNet(nn.Module):
         self.conv1 = nn.Conv2d(3, self.in_planes, kernel_size=3,
                                stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(self.in_planes)
-        self.layer1 = self._make_layer(block, 16, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, 32, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, 64, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(block, 128, num_blocks[3], stride=2)
+        self.layer1 = self._make_layer(PermBasicBlock, 16, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(PermBasicBlock, 32, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(PermBasicBlock, 64, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(PermBasicBlock, 128, num_blocks[3], stride=2)
         self.linear = nn.Linear(128*block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
@@ -104,28 +141,28 @@ class ResNet(nn.Module):
         return out
 
 
-def ResNet18():
+def ResNet18_1x1():
     return ResNet(BasicBlock, [2, 2, 2, 2])
 
 
-def ResNet34():
+def ResNet34_1x1():
     return ResNet(BasicBlock, [3, 4, 6, 3])
 
 
-def ResNet50():
+def ResNet50_1x1():
     return ResNet(Bottleneck, [3, 4, 6, 3])
 
 
-def ResNet101():
+def ResNet101_1x1():
     return ResNet(Bottleneck, [3, 4, 23, 3])
 
 
-def ResNet152():
+def ResNet152_1x1():
     return ResNet(Bottleneck, [3, 8, 36, 3])
 
 
 def test():
-    net = ResNet18()
+    net = ResNet18_1x1()
     y = net(torch.randn(1, 3, 32, 32))
     print(y.size())
 

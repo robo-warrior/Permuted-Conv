@@ -176,7 +176,6 @@ for epoch in range(10001):  # loop over the dataset multiple times
     plt.close()
 
     if(epoch%5 == 0):
-
         # test
         correct = 0
         total = 0

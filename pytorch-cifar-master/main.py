@@ -23,20 +23,26 @@ parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
 
+# Ideas
+# Pretrain network without permuted convolutions. Then train it using permuted/shuffled convolutions
 ################################################
-num_channels_permuted = "2-4_blocks_100_channels"
-model_name = "ShuffledResNet18"
-gpu_id = 3
+num_channels_permuted = "0"
+model_name = "ResNet_1x1_Dropout_0.8_2-3_blocks"
+gpu_id = 0
 ################################################
 
 experiment.add_tag(model_name)
 experiment.add_tag(num_channels_permuted)
+experiment.log_other("Network", "ResNet-18-reduced")
+experiment.log_other("Dataset", "CIFAR-100")
+experiment.log_other("Type", "Dropout")
 
 device = 'cuda:' + str(gpu_id) if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-train_batch_size = 50
-test_batch_size = 50
+train_batch_size = 100
+test_batch_size = 100
+reg_lambda = 5e-4
 
 # Data
 print('==> Preparing data..')
@@ -52,12 +58,12 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-trainset = torchvision.datasets.CIFAR10(
+trainset = torchvision.datasets.CIFAR100(
     root='./data', train=True, download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(
     trainset, batch_size=train_batch_size, shuffle=True, num_workers=2)
 
-testset = torchvision.datasets.CIFAR10(
+testset = torchvision.datasets.CIFAR100(
     root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=test_batch_size, shuffle=False, num_workers=2)
@@ -69,9 +75,15 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 print('==> Building model..')
 ################################################
 # net = VGG('VGG19')
+
 # net = ResNet18()
 # net = PermResNet18()
-net = ShuffledResNet18()
+# net = PermResNet_no_constraints18()
+# net = ShuffledResNet18()
+# net = ResNet18_1x1()
+# net = ShuffledResNetNormalized18()
+net = PermResNet18_1x1_Dropout()
+
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -95,7 +107,7 @@ if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.pth')
+    checkpoint = torch.load('./checkpoint/resnet18_reduced_ckpt.pth')
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
@@ -117,6 +129,18 @@ def train(epoch):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = net(inputs)
+        # loss_reg = reg_lambda * (
+        #         # torch.norm(net.layer1[0].onexone1.weight.data, 1) + torch.norm(net.layer1[0].onexone2.weight.data, 1)
+        #         # + torch.norm(net.layer1[1].onexone1.weight.data, 1) + torch.norm(net.layer1[1].onexone2.weight.data, 1)
+        #         torch.norm(net.layer2[0].onexone1.weight.data, 1) + torch.norm(net.layer2[0].onexone2.weight.data, 1)
+        #         + torch.norm(net.layer2[1].onexone1.weight.data, 1) + torch.norm(net.layer2[1].onexone2.weight.data, 1)
+        #         + torch.norm(net.layer3[0].onexone1.weight.data, 1) + torch.norm(net.layer3[0].onexone2.weight.data, 1)
+        #         + torch.norm(net.layer3[1].onexone1.weight.data, 1) + torch.norm(net.layer3[1].onexone2.weight.data, 1)
+        #         + torch.norm(net.layer4[0].onexone1.weight.data, 1) + torch.norm(net.layer4[0].onexone2.weight.data, 1)
+        #         + torch.norm(net.layer4[1].onexone1.weight.data, 1) + torch.norm(net.layer4[1].onexone2.weight.data, 1)
+        # )
+        #
+        # loss = criterion(outputs, targets) + loss_reg
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -142,6 +166,21 @@ def test(epoch):
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
+            # loss_reg = reg_lambda * (
+            #     # torch.norm(net.layer1[0].onexone1.weight.data, 1) + torch.norm(net.layer1[0].onexone2.weight.data, 1)
+            #     # + torch.norm(net.layer1[1].onexone1.weight.data, 1) + torch.norm(net.layer1[1].onexone2.weight.data, 1)
+            #         torch.norm(net.layer2[0].onexone1.weight.data, 1) + torch.norm(net.layer2[0].onexone2.weight.data,
+            #                                                                        1)
+            #         + torch.norm(net.layer2[1].onexone1.weight.data, 1) + torch.norm(net.layer2[1].onexone2.weight.data,
+            #                                                                          1)
+            #         + torch.norm(net.layer3[0].onexone1.weight.data, 1) + torch.norm(net.layer3[0].onexone2.weight.data,
+            #                                                                          1)
+            #         + torch.norm(net.layer3[1].onexone1.weight.data, 1) + torch.norm(net.layer3[1].onexone2.weight.data,
+            #                                                                          1)
+            #     + torch.norm(net.layer4[0].onexone1.weight.data, 1) + torch.norm(net.layer4[0].onexone2.weight.data, 1)
+            #     + torch.norm(net.layer4[1].onexone1.weight.data, 1) + torch.norm(net.layer4[1].onexone2.weight.data, 1)
+            # )
+            # loss = criterion(outputs, targets) + loss_reg
             loss = criterion(outputs, targets)
             test_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -162,7 +201,7 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.pth')
+        torch.save(state, './checkpoint/shuffledresnet18_layernorm_no_params_ckpt.pth')
         best_acc = acc
 
     return test_loss / len(testloader), 100.*correct/total
@@ -174,7 +213,7 @@ testing_loss_list = []
 
 best_train_acc = 0
 best_test_acc = 0
-for epoch in range(start_epoch, start_epoch+1000):
+for epoch in range(start_epoch, start_epoch+1500):
     print(model_name)
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)

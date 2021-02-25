@@ -20,3 +20,4 @@ from .permuted_resnet_no_constraints import *
 from .shuffled_filters_resnet_normalization_play import *
 from .resnet_1x1 import *
 from .permuted_resnet_dropout_onexone import *
+from .squeezenet_cifar import *

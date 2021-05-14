@@ -13,12 +13,13 @@ import argparse
 from models import *
 from utils import progress_bar
 import torch.optim.lr_scheduler as lrs
+from ptflops import get_model_complexity_info
 
 experiment = Experiment(api_key="hPc2DeBWvLYMqWUFLMgVTSQrF",
                         project_name="permuted-convolutions", workspace="rishabh")
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.0001, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
@@ -26,24 +27,27 @@ args = parser.parse_args()
 # Ideas
 # Pretrain network without permuted convolutions. Then train it using permuted/shuffled convolutions
 ################################################
-num_channels_permuted = "0"
-model_name = "LeNet_1x1_regularized_conv1-2"
+num_channels_permuted = "5, 10"
+# model_name = "DenseNet_reduced_1x1_regularized_conv1-2"
+# model_name = "small_CNN_1x1_3x3_no_bias_LBFGS"
+model_name = "PermSmallCNN_SGD_LR_0.0001_LRS_no_bias"
 gpu_id = 3
-reg_lambda = 5e-1
+reg_lambda = 5e-3
 ################################################
 
 experiment.add_tag(model_name)
 experiment.add_tag(num_channels_permuted)
-experiment.log_other("Network", "LeNet_1x1_regularized")
+experiment.log_other("Network", model_name)
 experiment.log_other("Dataset", "CIFAR-100")
-experiment.log_other("Type", "1x1_regularized_conv1-2")
-experiment.log_other("Regularizer", reg_lambda)
+experiment.log_other("Type", model_name)
+# experiment.log_other("Regularizer", reg_lambda)
 
 device = 'cuda:' + str(gpu_id) if torch.cuda.is_available() else 'cpu'
+# device = 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-train_batch_size = 100
-test_batch_size = 100
+train_batch_size = 250
+test_batch_size = 250
 
 # Data
 print('==> Preparing data..')
@@ -80,16 +84,25 @@ print('==> Building model..')
 # net = VGG('VGG19')
 
 # net = ResNet18()
+# net = ResNet_weighted18()
+# net = PermResNet18_Weighted()
+net = permuted_SmallCNN()
 # net = PermResNet18()
 # net = PermResNet_no_constraints18()
 # net = ShuffledResNet18()
 # net = ResNet18_1x1()
+# net = ResNet18_multiple_1x1()
+# net = ResNet18_multiple_1x1_grouped()
 # net = ShuffledResNetNormalized18()
 # net = PermResNet18_1x1_Dropout()
-net = LeNet_1x1()
+# net = LeNet()
+# net = LeNet_1x1()
+# net = LeNet_weighted()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
+# net = densenet_cifar()
+# net = densenet_cifar_1x1()
 # net = ResNeXt29_2x64d()
 # net = MobileNet()
 # net = MobileNetV2()
@@ -99,6 +112,11 @@ net = LeNet_1x1()
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
 # net = RegNetX_200MF()
+# net = SmallCNN()
+# net = SmallCNN_1x1()
+# net = SmallCNN_weighted()
+# net = E2ESmallCNN()
+# net = E2ESmallCNN_1x1()
 ################################################
 net = net.to(device)
 
@@ -118,9 +136,40 @@ net = net.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
-model_scheduler = lrs.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
+# optimizer = torch.optim.LBFGS(net.parameters(), lr=0.001, max_iter=20, max_eval=None, tolerance_grad=1e-07, tolerance_change=1e-09, history_size=100, line_search_fn=None)
+# optimizer = torch.optim.Adam(net.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
+
+model_scheduler = lrs.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
 
 print(net)
+
+# Model FLOPS and paramaters data
+with torch.cuda.device(device):
+  macs, params = get_model_complexity_info(net, (3, 32, 32), as_strings=True,
+                                           print_per_layer_stat=True, verbose=True)
+  print('{:<30}  {:<8}'.format('Computational complexity (MACs): ', macs))
+  print('{:<30}  {:<8}'.format('Number of parameters: ', params))
+
+experiment.log_other("MACs", '{:<30}  {:<8}'.format('Computational complexity (MACs): ', macs))
+experiment.log_other("Parameters", '{:<30}  {:<8}'.format('Number of parameters: ', params))
+
+net_total_params = sum(p.numel() for p in net.parameters())
+experiment.log_other("Params_total", net_total_params)
+net_trainable_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
+experiment.log_other("Params_trainable", net_trainable_params)
+
+print("Params total: ", net_total_params)
+print("Params trainable: ", net_trainable_params)
+
+# child_counter = 0
+# sub_child_counter = 0
+# for child in net.children():
+#    for sub_children in child.children():
+#        print("Sub Children: ", sub_child_counter, "of child: ", child_counter,  "is:")
+#        print(sub_children)
+#        sub_child_counter += 1
+#    child_counter += 1
+
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -130,10 +179,29 @@ def train(epoch):
     total = 0
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
+
+        # # For LBFGS:
+        # outputs = torch.zeros(train_batch_size, 100)
+        # # LBFGS closure:
+        # def closure():
+        #     if torch.is_grad_enabled():
+        #         optimizer.zero_grad()
+        #     nonlocal outputs
+        #     outputs = net(inputs)
+        #     loss = criterion(outputs, targets)
+        #     if loss.requires_grad:
+        #         loss.backward()
+        #     return loss
+        #
+        # # LBFGS steps:
+        # loss = optimizer.step(closure)
+
+
         optimizer.zero_grad()
         outputs = net(inputs)
-        # ResNet-18_1x1:
-        # loss_reg = reg_lambda * (
+
+        # # ResNet-18_1x1:
+        # sum_norms = reg_lambda * (
         #         # torch.norm(net.layer1[0].onexone1.weight.data, 1) + torch.norm(net.layer1[0].onexone2.weight.data, 1)
         #         # + torch.norm(net.layer1[1].onexone1.weight.data, 1) + torch.norm(net.layer1[1].onexone2.weight.data, 1)
         #         torch.norm(net.layer2[0].onexone1.weight.data, 1) + torch.norm(net.layer2[0].onexone2.weight.data, 1)
@@ -143,15 +211,32 @@ def train(epoch):
         #         # + torch.norm(net.layer4[0].onexone1.weight.data, 1) + torch.norm(net.layer4[0].onexone2.weight.data, 1)
         #         # + torch.norm(net.layer4[1].onexone1.weight.data, 1) + torch.norm(net.layer4[1].onexone2.weight.data, 1)
         # )
-
+        #
         # LeNet-5_1x1
-        loss_reg = reg_lambda * (
-                torch.norm(net.onexone1.weight.data, 1) + torch.norm(net.onexone2.weight.data, 1)
-        )
-        loss = criterion(outputs, targets) + loss_reg
-        # loss = criterion(outputs, targets)
+        # sum_norms = reg_lambda * (
+        #         torch.norm(net.onexone1.weight.data, 1) + torch.norm(net.onexone2.weight.data, 1)
+        # )
+        #
+        # # DenseNet_reduced_1x1
+        # # sub_children_to_be_regularized = [0, 1, 2, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30, 31, 32, 33, 34]
+        # sub_children_to_be_regularized = [5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+        #                                   27, 28, 29, 30, 31, 32, 33, 34]
+        # sum_norms = 0
+        # child_counter = 0
+        # sub_child_counter = 0
+        # for child in net.children():
+        #     for sub_children in child.children():
+        #         if(sub_child_counter in sub_children_to_be_regularized):
+        #             sum_norms += torch.norm(sub_children.onexone2.weight.data, 1)
+        #         sub_child_counter += 1
+        #     child_counter += 1
+
+
+        # loss = criterion(outputs, targets) + reg_lambda * sum_norms
+        loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
+
         train_loss += loss.item()
         _, predicted = outputs.max(1)
         total += targets.size(0)
@@ -174,8 +259,23 @@ def test(epoch):
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
-            # ResNet-18_1x1
-            # loss_reg = reg_lambda * (
+
+            # # For LBFGS:
+            # outputs = torch.zeros(test_batch_size, 100)
+            # # LBFGS closure:
+            # def closure():
+            #     if torch.is_grad_enabled():
+            #         optimizer.zero_grad()
+            #     nonlocal outputs
+            #     outputs = net(inputs)
+            #     loss = criterion(outputs, targets)
+            #     return loss
+            # # LBFGS steps:
+            # loss = closure()
+
+
+            # # ResNet-18_1x1
+            # sum_norms = reg_lambda * (
             #     # torch.norm(net.layer1[0].onexone1.weight.data, 1) + torch.norm(net.layer1[0].onexone2.weight.data, 1)
             #     # + torch.norm(net.layer1[1].onexone1.weight.data, 1) + torch.norm(net.layer1[1].onexone2.weight.data, 1)
             #         torch.norm(net.layer2[0].onexone1.weight.data, 1) + torch.norm(net.layer2[0].onexone2.weight.data,                                                                   1)
@@ -185,12 +285,29 @@ def test(epoch):
             #         # + torch.norm(net.layer4[0].onexone1.weight.data, 1) + torch.norm(net.layer4[0].onexone2.weight.data, 1)
             #         # + torch.norm(net.layer4[1].onexone1.weight.data, 1) + torch.norm(net.layer4[1].onexone2.weight.data, 1)
             # )
+
             # LeNet-5_1x1
-            loss_reg = reg_lambda * (
-                torch.norm(net.onexone1.weight.data, 1) + torch.norm(net.onexone2.weight.data, 1)
-            )
-            loss = criterion(outputs, targets) + loss_reg
-            # loss = criterion(outputs, targets)
+            # sum_norms = reg_lambda * (
+            #     torch.norm(net.onexone1.weight.data, 1) + torch.norm(net.onexone2.weight.data, 1)
+            # )
+
+            # DenseNet_reduced_1x1
+            # sub_children_to_be_regularized = [0, 1, 2, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30, 31, 32, 33, 34]
+            # sub_children_to_be_regularized = [5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            #                                   27, 28, 29, 30, 31, 32, 33, 34]
+            # sum_norms = 0
+            # child_counter = 0
+            # sub_child_counter = 0
+            # for child in net.children():
+            #     for sub_children in child.children():
+            #         if (sub_child_counter in sub_children_to_be_regularized):
+            #             sum_norms += torch.norm(sub_children.onexone2.weight.data, 1)
+            #         sub_child_counter += 1
+            #     child_counter += 1
+
+            # loss = criterion(outputs, targets) + reg_lambda * sum_norms
+            loss = criterion(outputs, targets)
+
             test_loss += loss.item()
             _, predicted = outputs.max(1)
             total += targets.size(0)
@@ -210,7 +327,7 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/shuffledresnet18_layernorm_no_params_ckpt.pth')
+        torch.save(state, './checkpoint/' + model_name + '_ckpt.pth')
         best_acc = acc
 
     return test_loss / len(testloader), 100.*correct/total
@@ -222,7 +339,7 @@ testing_loss_list = []
 
 best_train_acc = 0
 best_test_acc = 0
-for epoch in range(start_epoch, start_epoch+3000):
+for epoch in range(start_epoch, start_epoch+2000):
     print(model_name)
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)
@@ -246,7 +363,7 @@ for epoch in range(start_epoch, start_epoch+3000):
     plt.ylabel('Loss')
     plt.title('Loss plot')
     plt.legend()
-    # plt.savefig("./loss_plot_perm2.png", format='png')
+    plt.savefig("./loss_plot_" + model_name + ".png", format='png')
     experiment.log_figure(figure=plt, figure_name='loss_plot', overwrite=True)
     plt.close()
 
@@ -256,6 +373,6 @@ for epoch in range(start_epoch, start_epoch+3000):
     plt.ylabel('Accuracy')
     plt.title('Accuracy plot')
     plt.legend()
-    # plt.savefig("./accuracy_plot_perm2.png", format='png')
+    plt.savefig("./accuracy_plot_" + model_name + ".png", format='png')
     experiment.log_figure(figure=plt, figure_name='accuracy_plot', overwrite=True)
     plt.close()

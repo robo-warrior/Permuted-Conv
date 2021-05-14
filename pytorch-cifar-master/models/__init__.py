@@ -21,3 +21,8 @@ from .shuffled_filters_resnet_normalization_play import *
 from .resnet_1x1 import *
 from .permuted_resnet_dropout_onexone import *
 from .squeezenet_cifar import *
+from .densenet_depthwise_separable import *
+from .resnet_multiple_1x1 import *
+from .resnet_multiple_1x1_grouped import *
+from .small_CNN import *
+from .permconv import *

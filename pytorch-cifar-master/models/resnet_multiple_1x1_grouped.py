@@ -48,27 +48,29 @@ class PermBasicBlock(nn.Module):
         self.in_planes = in_planes
         self.planes = planes
         self.conv1 = nn.Conv2d(
-            self.in_planes, self.in_planes * self.planes, kernel_size=3, stride=stride, padding=1, bias=False, groups=self.in_planes)
-        self.onexone1 = nn.Conv2d(self.in_planes * self.planes, self.planes, kernel_size=1, groups=self.planes)
+            in_planes, in_planes * planes, kernel_size=3, stride=stride, padding=1, bias=False, groups=self.in_planes)
+        self.onexone1 = nn.Conv2d(self.in_planes * self.planes, self.planes * self.planes, kernel_size=1, groups=self.planes)
+        self.onexone1_shrink = nn.Conv2d(self.planes * self.planes, self.planes, kernel_size=1)
         self.bn1 = nn.BatchNorm2d(self.planes)
         self.conv2 = nn.Conv2d(self.planes, self.planes * self.planes, kernel_size=3, stride=1, padding=1, bias=False, groups=self.planes)
-        self.onexone2 = nn.Conv2d(self.planes * self.planes, self.planes, kernel_size=1, groups=self.planes)
-        self.bn2 = nn.BatchNorm2d(self.planes)
+        self.onexone2 = nn.Conv2d(self.planes * self.planes, self.planes * self.planes, kernel_size=1, groups=self.planes)
+        self.onexone2_shrink = nn.Conv2d(self.planes * self.planes, self.planes, kernel_size=1)
+        self.bn2 = nn.BatchNorm2d(planes)
         self.shortcut = nn.Sequential()
-        if stride != 1 or self.in_planes != self.expansion * self.planes:
+        if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
                 # nn.Conv2d(in_planes, in_planes * self.expansion*planes,
                 #           kernel_size=1, stride=stride, bias=False, groups=in_planes),
                 # nn.Conv2d(in_planes * self.expansion*planes, self.expansion*planes, kernel_size=1, groups=self.expansion*planes),
-                nn.Conv2d(self.in_planes, self.expansion * self.planes,
+                nn.Conv2d(in_planes, self.expansion * planes,
                           kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(self.expansion*planes)
             )
 
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.onexone1(self.conv1(x))))
-        out = self.bn2(self.onexone2(self.conv2(out)))
+        out = F.relu(self.bn1(self.onexone1_shrink(self.onexone1(self.conv1(x)))))
+        out = self.bn2(self.onexone2_shrink(self.onexone2(self.conv2(out))))
         out += self.shortcut(x)
         out = F.relu(out)
         return out
@@ -140,28 +142,28 @@ class ResNet(nn.Module):
         return out
 
 
-def ResNet18_1x1():
+def ResNet18_multiple_1x1_grouped():
     return ResNet(BasicBlock, [2, 2, 2, 2])
 
 
-def ResNet34_1x1():
+def ResNet34_multiple_1x1_grouped():
     return ResNet(BasicBlock, [3, 4, 6, 3])
 
 
-def ResNet50_1x1():
+def ResNet50_multiple_1x1_grouped():
     return ResNet(Bottleneck, [3, 4, 6, 3])
 
 
-def ResNet101_1x1():
+def ResNet101_multiple_1x1_grouped():
     return ResNet(Bottleneck, [3, 4, 23, 3])
 
 
-def ResNet152_1x1():
+def ResNet152_multiple_1x1_grouped():
     return ResNet(Bottleneck, [3, 8, 36, 3])
 
 
 def test():
-    net = ResNet18_1x1()
+    net = ResNet18_multiple_1x1_grouped()
     y = net(torch.randn(1, 3, 32, 32))
     print(y.size())
 
